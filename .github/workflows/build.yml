@@ -1,0 +1,56 @@
+name: Build
+
+# Based on GloriousEggroll's workflow configuration. https://github.com/GloriousEggroll/proton-ge-custom
+
+on:
+  workflow_call:
+    inputs:
+      name:
+        required: true
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Dependencies
+        run: sudo apt update && sudo apt-get install -y ccache fontforge-nox
+
+      - name: Fetch cache
+        uses: actions/cache@v3
+        with:
+          path: ~/.ccache
+          key: cache-proton-${{ github.run_id }}
+          restore-keys: |
+            ccache-proton
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          submodules: recursive
+
+      - name: Create build dir
+        run: mkdir ./build
+
+      - name: Configure
+        working-directory: ./build
+        run: ../configure.sh --enable-ccache --build-name=${{ inputs.name }} --container-engine=docker
+
+      - name: Make
+        working-directory: ./build
+        run: make -j3 redist
+
+      - name: Create archive
+        working-directory: ./build
+        run: |
+          mv ./redist "./${{ inputs.name }}"
+          tar -czvf "./${{ inputs.name }}.tar.gz" "./${{ inputs.name }}"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ inputs.name }}.tar.gz
+          path: ./build/${{ inputs.name }}.tar.gz
+
